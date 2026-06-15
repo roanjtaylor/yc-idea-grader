@@ -1,8 +1,0 @@
-{
-  "functions": {
-    "api/analyze.ts": {
-      "includeFiles": "content/embeddings.json",
-      "maxDuration": 30
-    }
-  }
-}
