@@ -86,7 +86,12 @@ JSON SHAPE:
   ],
   "comparables": [ { "name": "...", "outcome": "...", "lesson": "...", "url": "..." } ],
   "next_steps": [ { "text": "<concrete, time-boxed experiment>", "why": "<what it de-risks>" } ]
-}`;
+}
+
+COUNTS (strict):
+- "sections": exactly 4, one per key, each with AT MOST 2 sources.
+- "comparables": AT MOST 3.
+- "next_steps": 1 to 3 — pick the highest-leverage experiments; do NOT exceed 3.`;
 }
 
 export function buildSourcesBlock(chunks: Chunk[]): string {

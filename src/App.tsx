@@ -1,15 +1,22 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Form } from "./components/Form.tsx";
 import { Report } from "./components/Report.tsx";
-import type { AnalyzeResponse, FormInput } from "./lib/schema.ts";
-import { exportRuns, importRuns, loadRuns, saveRun, type Run } from "./lib/storage.ts";
+import type { FormInput } from "./lib/schema.ts";
+import { deleteRun, fetchRuns, type Run } from "./lib/storage.ts";
 
 export function App() {
-  const [runs, setRuns] = useState<Run[]>(() => loadRuns());
-  const [active, setActive] = useState<Run | null>(() => loadRuns()[0] ?? null);
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [active, setActive] = useState<Run | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load history from disk on mount.
+  useEffect(() => {
+    fetchRuns().then((r) => {
+      setRuns(r);
+      setActive((cur) => cur ?? r[0] ?? null);
+    });
+  }, []);
 
   async function handleSubmit(input: FormInput) {
     setLoading(true);
@@ -36,17 +43,23 @@ export function App() {
       } catch {
         throw new Error(`Unexpected non-JSON response (${res.status}): ${text.slice(0, 200)}`);
       }
-      const body = json as { detail?: string; error?: string };
+      const body = json as { run?: Run; detail?: string; error?: string };
       if (!res.ok) throw new Error(body.detail || body.error || "Request failed");
-      const result = json as AnalyzeResponse;
-      const run = saveRun(input, result);
-      setRuns(loadRuns());
-      setActive(run);
+      if (!body.run) throw new Error("Server did not return a saved run.");
+      // Server already persisted the run to disk; just reflect it in the UI.
+      setRuns((prev) => [body.run as Run, ...prev]);
+      setActive(body.run);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleDelete(id: string) {
+    await deleteRun(id);
+    setRuns((prev) => prev.filter((r) => r.id !== id));
+    setActive((cur) => (cur?.id === id ? null : cur));
   }
 
   return (
@@ -64,23 +77,6 @@ export function App() {
         </main>
 
         <aside className="sidebar">
-          <div className="sidebar-actions">
-            <button onClick={exportRuns} className="ghost">Export</button>
-            <button onClick={() => fileRef.current?.click()} className="ghost">Import</button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              hidden
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                if (f) {
-                  await importRuns(f);
-                  setRuns(loadRuns());
-                }
-              }}
-            />
-          </div>
           <h3>History</h3>
           <ul className="history">
             {runs.map((r) => (
@@ -91,6 +87,16 @@ export function App() {
               >
                 <span className={`dot dot-${r.result.output.verdict}`} />
                 <span className="hist-title">{r.input.idea ?? r.input.problem.slice(0, 40)}</span>
+                <button
+                  className="hist-del"
+                  title="Delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(r.id);
+                  }}
+                >
+                  ×
+                </button>
               </li>
             ))}
             {runs.length === 0 && <li className="empty">No runs yet.</li>}

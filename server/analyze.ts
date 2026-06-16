@@ -91,6 +91,23 @@ export async function analyze(form: FormInput): Promise<AnalyzeResponse> {
       continue;
     }
 
+    // The model occasionally returns one or two extra items. Clamp the
+    // bounded arrays to schema limits rather than discarding a whole (slow,
+    // otherwise-valid) analysis over a count overflow.
+    if (json && typeof json === "object") {
+      const obj = json as Record<string, unknown>;
+      if (Array.isArray(obj.next_steps)) obj.next_steps = obj.next_steps.slice(0, 3);
+      if (Array.isArray(obj.comparables)) obj.comparables = obj.comparables.slice(0, 3);
+      if (Array.isArray(obj.sections)) {
+        for (const s of obj.sections) {
+          if (s && typeof s === "object") {
+            const sec = s as Record<string, unknown>;
+            if (Array.isArray(sec.sources)) sec.sources = sec.sources.slice(0, 2);
+          }
+        }
+      }
+    }
+
     const parsed = AnalyzerOutput.safeParse(json);
     if (!parsed.success) {
       lastError = `Output failed schema validation: ${JSON.stringify(parsed.error.flatten())}`;

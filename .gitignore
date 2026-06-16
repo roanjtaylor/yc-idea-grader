@@ -4,3 +4,6 @@ dist
 .env.local
 .DS_Store
 *.log
+
+# Local run history (auto-saved analyses)
+data

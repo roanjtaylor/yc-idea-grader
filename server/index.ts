@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { assertNoApiKey } from "../src/lib/llm.ts";
 import { FormInput } from "../src/lib/schema.ts";
 import { analyze } from "./analyze.ts";
+import { deleteRun, listRuns, saveRun } from "./runs.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 
@@ -38,12 +39,31 @@ const server = createServer(async (req, res) => {
         return;
       }
       const result = await analyze(parsed.data);
-      sendJson(res, 200, result);
+      const run = await saveRun(parsed.data, result); // auto-persist to data/runs/
+      sendJson(res, 200, { run });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[analyze] failed:", msg);
       sendJson(res, 502, { error: "Analysis failed", detail: msg });
     }
+    return;
+  }
+
+  // History — served straight from the files on disk.
+  if (req.method === "GET" && req.url === "/api/runs") {
+    try {
+      sendJson(res, 200, { runs: await listRuns() });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error: "Failed to read history", detail: msg });
+    }
+    return;
+  }
+
+  if (req.method === "DELETE" && req.url?.startsWith("/api/runs/")) {
+    const id = decodeURIComponent(req.url.slice("/api/runs/".length));
+    const ok = await deleteRun(id);
+    sendJson(res, ok ? 200 : 404, { ok });
     return;
   }
 
